@@ -80,6 +80,7 @@ class cliClient(object):
                                        items['gitbaseurl'],
                                        items['anongiturl'],
                                        items['branchre'],
+                                       items.get('remote', 'origin'),
                                        items['kojiconfig'],
                                        items['build_client'],
                                        user=self.args.user,

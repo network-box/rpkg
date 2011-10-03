@@ -61,7 +61,7 @@ class Commands(object):
     """
 
     def __init__(self, path, lookaside, lookasidehash, lookaside_cgi,
-                 gitbaseurl, anongiturl, branchre, kojiconfig,
+                 gitbaseurl, anongiturl, branchre, remote, kojiconfig,
                  build_client, user=None, dist=None, target=None,
                  quiet=False):
         """Init the object and some configuration details."""
@@ -80,6 +80,8 @@ class Commands(object):
         self.anongiturl = anongiturl
         # The regex of branches we care about
         self.branchre = branchre
+        # The local name of the remote (usually 'origin')
+        self.remote = remote
         # The location of the buildsys config file
         self.kojiconfig = kojiconfig
         # The buildsys client to use
@@ -954,6 +956,11 @@ class Commands(object):
         else:
             self.log.debug('Cloning %s' % giturl)
             cmd.extend([giturl])
+
+        if not bare_dir:
+            # --bare and --origin are incompatible
+            cmd.extend(['--origin', self.remote])
+
         self._run_command(cmd, cwd=path)
 
         return
@@ -1002,14 +1009,14 @@ class Commands(object):
         for branch in branches:
             try:
                 # Make a local clone for our branch
-                top_git.clone("--branch", branch, repo_path, branch)
+                top_git.clone("--branch", branch, '--origin', self.remote,
+                        repo_path, branch)
 
-                # Set the origin correctly
+                # Set the remote correctly
                 branch_path = os.path.join(top_path, branch)
                 branch_git = git.Git(branch_path)
-                branch_git.config("--replace-all", "remote.origin.url", giturl)
-                # Bad use of "origin" here, need to fix this when more than one
-                # remote is used.
+                branch_git.config(
+                        "--replace-all", "remote.%s.url" % self.remote, giturl)
             except (git.GitCommandError, OSError), e:
                 raise rpkgError('Could not locally clone %s from %s: %s' %
                         (branch, repo_path, e))
@@ -1445,8 +1452,7 @@ class Commands(object):
             self.log.debug('No local branch found, creating a new one')
             totrack = None
             for remote in remotes:
-                # bad use of "origin" here, will have to be fixed
-                if remote.replace('origin/', '') == branch:
+                if remote.endswith(branch):
                     totrack = remote
                     break
             else:
